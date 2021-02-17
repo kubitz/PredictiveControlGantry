@@ -19,26 +19,32 @@ param.Tf=shape.Tf;
 param.angleConstraint=3*pi/180;
 param.Ts = 0.05;
 param.Tf=shape.Tf;
-N=20;
+N=100;
 
 % Declare penalty matrices:
-Q = 1*diag(1:8);
-P = 100000*diag(3:10);
-R = diag([2;3]);
+Qt = [100 10 100 10 50 1 50 1];
+Pt = [100 10 100 10 50 1 50 1];
+Rt = [1 1];
+
+Q = 1*diag(Qt);
+P = 100*diag(Pt);
+R = 10*diag(Rt);
 
 load('Crane_NominalParameters.mat');
 [param.A,param.B,param.C,~] = genCraneODE(m,M,MR,r,9.81,Tx,Ty,Vx,param.Ts);
 %% Declare contraints
-cl=[-0.01;  -0.01; -param.angleConstraint;  -param.angleConstraint];
-ch=[0.8*xRange(2);  0.8*yRange(2);  param.angleConstraint;  param.angleConstraint];
+clAngle=[-param.angleConstraint;  -param.angleConstraint];
+chAngle=[param.angleConstraint;  param.angleConstraint];
+DAngle=zeros(2,8);DAngle(1,5)=1;DAngle(2,7)=1;
+
+[DRect,clRect,chRect]=getRectConstraintsLoad(param.constraints.rect,r);
+DRect
+% constrained vector is Dx, hence
+D=[DAngle;DRect];
+ch=[chAngle;chRect];
+cl=[clAngle;clRect];
 ul=[-1; -1];
 uh=[1; 1];
-
-DRect=getRectConstraints(pqrq
-% constrained vector is Dx, hence
-D=zeros(4,8);D(1,1)=1;D(2,3)=1;D(3,5)=1;D(4,7)=1;
-ch
-
 
 %% Compute stage constraint matrices and vector
 [Dt,Et,bt]=genStageConstraints(param.A,param.B,D,cl,ch,ul,uh);
@@ -74,10 +80,6 @@ r(1,1) = param.xTar;
 r(3,1) = param.yTar;
 
 end % End of myTargetGenerator
-
-
-
-
 
 function x_hat = myStateEstimator(u, y, param)
 %% Modify the following function for your state estimator (if desired)
@@ -280,6 +282,27 @@ DRect=zeros(2,8);DRect(1,1)=a1;DRect(1,3)=b1;DRect(2,1)=a3;DRect(2,3)=b3;
 clRect=[c2;c4];
 chRect=[c1;c3];
 end
+
+
+function [DRect,clRect,chRect] = getRectConstraintsLoad(rect,length)
+A = rect(1,:);
+B = rect(2,:);
+C = rect(3,:);
+D = rect(4,:);
+% First two parallel edges - computed in same direction
+[a1,b1,c1] = getLineParamsStd(A,B);
+[a2,b2,c2] = getLineParamsStd(D,C);
+% Second set of parallel edges - computed in same direction
+[a3,b3,c3] = getLineParamsStd(B,C);
+[a4,b4,c4] = getLineParamsStd(A,D);
+% Compute D matrix and upper/lower bounds
+DRect=zeros(2,8);DRect(1,1)=a1;DRect(1,3)=b1;DRect(2,1)=a3;DRect(2,3)=b3;
+DRect(1,5)=a1*length;DRect(1,7)=b1*length;DRect(2,5)=a3*length;DRect(2,7)=b3*length;
+
+clRect=[c2;c4];
+chRect=[c1;c3];
+end
+
 
 function [A,B,C] = getLineParamsStd(pointA,pointB)
 % Get line parameters in standard form Ax+By=C
