@@ -1,4 +1,4 @@
-function [A,B,C,D] = genCraneODE(m,M,MR,r,g,Tx,Ty,Vm,Ts)
+function [A,B,C,D] = genCraneODE(m,M,MR,r,g,Tx,Ty,Vx,Vy,Ts)
 % Inputs:
 % m = Pendulum mass (kg)
 % M = Cart mass (kg)
@@ -13,9 +13,6 @@ function [A,B,C,D] = genCraneODE(m,M,MR,r,g,Tx,Ty,Vm,Ts)
 % A,B,C,D = State Space matrices of a discrete-time or continuous-time state space model
 
 % The motors in use on the gantry crane are identical and therefore Vx=Vy.
-Vx=Vm;
-Vy=Vm;
-
  
 A =[
  

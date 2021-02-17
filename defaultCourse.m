@@ -41,18 +41,15 @@ elseif coursenum == 2
 
 elseif coursenum == 3
     % The shape for the second part
-    constraints.rect = [0.00, 0.05;
-                        0.25, 0.30;
-                        0.50, 0.05;
-                        0.25, -0.20];
-    
-    
-    penalties = [-1, -2, -1, -1];                 
+%     constraints.rect = [0.00, 0.05;
+%                         0.25, 0.30;
+%                         0.50, 0.05;
+%                         0.25, -0.20];
+constraints.rect=[0.025,-0.35;0.025,0.35;-0.025,0.35;-0.025,-0.35]
+penalties = [-1, -2, -1, -1];                 
     constraints.ellipses = {};
-
-    start  = [0.00, 0.05];
-    target = [0.25, 0.30];
-    
+    start= [0.025, 0.35];
+    target= [0.025, -0.35];
     Wmax = 1;
     Tf   = 5;
 end

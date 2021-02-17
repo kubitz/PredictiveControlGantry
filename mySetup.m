@@ -19,7 +19,7 @@ param.Tf=shape.Tf;
 param.angleConstraint=3*pi/180;
 param.Ts = 0.05;
 param.Tf=shape.Tf;
-N=100;
+N=20;
 
 % Declare penalty matrices:
 Qt = [100 10 100 10 100 10 100 10];
@@ -31,7 +31,7 @@ P = 100*diag(Pt);
 R = 1*diag(Rt);
 
 load('Crane_NominalParameters.mat');
-[param.A,param.B,param.C,~] = genCraneODE(m,M,MR,r,9.81,Tx,Ty,Vx,param.Ts);
+[param.A,param.B,param.C,~] = genCraneODE(m,M,MR,r,9.81,Tx,Ty,Vx,Vy,param.Ts);
 %% Declare contraints
 clAngle=[-param.angleConstraint;  -param.angleConstraint];
 chAngle=[param.angleConstraint;  param.angleConstraint];
@@ -41,6 +41,9 @@ DAngle=zeros(2,8);DAngle(1,5)=1;DAngle(2,7)=1;
 DRect
 % constrained vector is Dx, hence
 D=[DAngle;DRect];
+% D=DRect;
+% ch=chAngle;
+% cl=clAngle;
 ch=[chAngle;chRect];
 cl=[clAngle;clRect];
 ul=[-1; -1];

@@ -19,7 +19,7 @@ param.Tf=shape.Tf;
 param.angleConstraint=3*pi/180;
 param.Ts = 0.05;
 param.Tf=shape.Tf;
-N=100;
+N=20;
 
 % Declare penalty matrices:
 Qt = [100 10 100 10 100 10 100 10];
@@ -31,7 +31,7 @@ P = 100*diag(Pt);
 R = 1*diag(Rt);
 
 load('Crane_NominalParameters.mat');
-[param.A,param.B,param.C,~] = genCraneODE(m,M,MR,r,9.81,Tx,Ty,Vx,param.Ts);
+[param.A,param.B,param.C,~] = genCraneODE(m,M,MR,r,9.81,Tx,Ty,Vx,Vy,param.Ts);
 %% Declare contraints
 clAngle=[-param.angleConstraint;  -param.angleConstraint];
 chAngle=[param.angleConstraint;  param.angleConstraint];
@@ -41,6 +41,9 @@ DAngle=zeros(2,8);DAngle(1,5)=1;DAngle(2,7)=1;
 DRect
 % constrained vector is Dx, hence
 D=[DAngle;DRect];
+% D=DRect;
+% ch=chAngle;
+% cl=clAngle;
 ch=[chAngle;chRect];
 cl=[clAngle;clRect];
 ul=[-1; -1];
@@ -134,7 +137,7 @@ Phi=Phi(size(B,1)+1:end,:);
 
 end
 
-function [A,B,C,D] = genCraneODE(m,M,MR,r,g,Tx,Ty,Vm,Ts)
+function [A,B,C,D] = genCraneODE(m,M,MR,r,g,Tx,Ty,Vx,Vy,Ts)
 % Inputs:
 % m = Pendulum mass (kg)
 % M = Cart mass (kg)
@@ -149,9 +152,6 @@ function [A,B,C,D] = genCraneODE(m,M,MR,r,g,Tx,Ty,Vm,Ts)
 % A,B,C,D = State Space matrices of a discrete-time or continuous-time state space model
 
 % The motors in use on the gantry crane are identical and therefore Vx=Vy.
-Vx=Vm;
-Vy=Vm;
-
  
 A =[
  
@@ -298,9 +298,9 @@ D = rect(4,:);
 % Compute D matrix and upper/lower bounds
 DRect=zeros(2,8);DRect(1,1)=a1;DRect(1,3)=b1;DRect(2,1)=a3;DRect(2,3)=b3;
 DRect(1,5)=a1*length;DRect(1,7)=-b1*length;DRect(2,5)=a3*length;DRect(2,7)=-b3*length;
+clRect=[min(c2,c1);min(c4,c3)];
+chRect=[max(c1,c2);max(c3,c4)];
 
-clRect=[c2;c4];
-chRect=[c1;c3];
 end
 
 
