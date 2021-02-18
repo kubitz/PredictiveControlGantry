@@ -21,14 +21,18 @@ param.Ts = 0.05;
 param.Tf=shape.Tf;
 param.useShrinkingHorizon=true;
 param.N=ceil(param.Tf/param.Ts)
+
 % Declare penalty matrices:
-Qt = [100 10 100 10 100 10 100 10];
+Qt = [100 1 100 1 100 10 100 10];
 Pt = [100 10 100 10 100 10 100 10];
 Rt = [1 1];
 
 param.Q = 1*diag(Qt);
 param.P = 100*diag(Pt);
 param.R = 1*diag(Rt);
+param.numStates=size(param.Q,1);
+param.numInputs=size(param.R,1);
+
 
 load('Crane_NominalParameters.mat');
 [param.A,param.B,param.C,~] = genCraneODE(m,M,MR,r,9.81,Tx,Ty,Vx,Vy,param.Ts);
@@ -103,7 +107,7 @@ end % End of myStateEstimator
 %% Modify the following function for your controller
 function u = myMPController(r, x_hat, param)
 %% Do not delete this line
-u=zeros(2,1);
+u=zeros(param.numInputs,1);
 % Create the output array of the appropriate size
 persistent it EE DD Gamma Phi bb
 if isempty(it)
@@ -119,28 +123,25 @@ if isempty(it)
     H=param.H;
     G=param.G;
 else
-    % Shave off top of matrices as the horizon recedes
-    DD=reduceMatrix(DD,param.numConstraints,8);
-    EE=reduceMatrix(EE,param.numConstraints,2);
+    % Shave off matrices as the horizon shrinks
+    DD=reduceMatrix(DD,param.numConstraints,param.numStates);
+    EE=reduceMatrix(EE,param.numConstraints,param.numInputs);
     bb=reduceMatrix(bb,param.numConstraints,0);
-    Gamma=reduceMatrix(Gamma,8,2);
-    Phi=reduceMatrix(Phi,8,0);
+    Gamma=reduceMatrix(Gamma,param.numStates,param.numInputs);
+    Phi=reduceMatrix(Phi,param.numStates,0);
 end 
 
 if (param.useShrinkingHorizon==true) && (it<param.N)
     N=param.N-it;
     [F,J,L]=genConstraintMatrices(DD,EE,Gamma,Phi,N);
     [H,G] = genCostMatrices(Gamma,Phi,param.Q,param.R,param.P,N);
-    [Lchol , ~] = chol(H,'lower');
-    Linv = linsolve(Lchol,eye(size(Lchol)),struct('LT',true)); 
-    u = genMPController(Linv,G,F,bb,J,L,x_hat,r,2);
+    u = genMPController(H,G,F,bb,J,L,x_hat,r,2);
     it=it+1;
 end 
 end % End of myMPController
 
 function [F,J,L] = genConstraintMatrices(DD,EE,Gamma,Phi,N)
 sx = size(Gamma,1) / N;
-sx=8;
 shift = [zeros(sx, sx*(N-1));eye(sx*(N-1))]*[eye(sx*(N-1)), zeros(sx*(N-1),sx)];
 F = DD*shift*Gamma + EE;
 J = -DD*(shift*Phi + [eye(sx);zeros(sx*(N-1), sx)]);
@@ -263,7 +264,7 @@ function [u,status,iA1] = genMPController(H,G,F,bb,J,L,x,xTarget,m)
     opt.IntegrityChecks = false;%% for code generation
     opt.ConstraintTolerance = 1e-3;
     opt.DataType = 'double';
-    opt.UseHessianAsInput = false;
+    opt.UseHessianAsInput = true;
 
     
     % Compute the linear term of the cost function

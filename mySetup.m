@@ -17,18 +17,22 @@ param.eps_t=shape.eps_t;
 param.Wmax=shape.Wmax;
 param.Tf=shape.Tf;
 param.angleConstraint=3*pi/180;
-param.Ts = 0.01;
+param.Ts = 0.05;
 param.Tf=shape.Tf;
 param.useShrinkingHorizon=true;
 param.N=ceil(param.Tf/param.Ts)
+
 % Declare penalty matrices:
-Qt = [100 10 100 10 100 10 100 10];
+Qt = [100 1 100 1 100 10 100 10];
 Pt = [100 10 100 10 100 10 100 10];
 Rt = [1 1];
 
 param.Q = 1*diag(Qt);
 param.P = 100*diag(Pt);
 param.R = 1*diag(Rt);
+param.numStates=size(param.Q,1);
+param.numInputs=size(param.R,1);
+
 
 load('Crane_NominalParameters.mat');
 [param.A,param.B,param.C,~] = genCraneODE(m,M,MR,r,9.81,Tx,Ty,Vx,Vy,param.Ts);

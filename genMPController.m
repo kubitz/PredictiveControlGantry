@@ -21,7 +21,7 @@ function [u,status,iA1] = genMPController(H,G,F,bb,J,L,x,xTarget,m)
     opt.IntegrityChecks = false;%% for code generation
     opt.ConstraintTolerance = 1e-3;
     opt.DataType = 'double';
-    opt.UseHessianAsInput = false;
+    opt.UseHessianAsInput = true;
 
     
     % Compute the linear term of the cost function
