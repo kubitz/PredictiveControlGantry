@@ -1,6 +1,6 @@
 function [ param ] = mySetup(shape)
 %% Modify the following function for your setup function
-
+clear myMPController;
 % This is a sample static K matrix for the controller
 param.K = [2, 0, 0, 0, 0, 0, 0, 0;
            0, 0, 2, 0, 0, 0, 0, 0];
@@ -19,16 +19,16 @@ param.Tf=shape.Tf;
 param.angleConstraint=3*pi/180;
 param.Ts = 0.05;
 param.Tf=shape.Tf;
-N=20;
-
+param.useShrinkingHorizon=true;
+param.N=ceil(param.Tf/param.Ts)
 % Declare penalty matrices:
 Qt = [100 10 100 10 100 10 100 10];
 Pt = [100 10 100 10 100 10 100 10];
 Rt = [1 1];
 
-Q = 1*diag(Qt);
-P = 100*diag(Pt);
-R = 1*diag(Rt);
+param.Q = 1*diag(Qt);
+param.P = 100*diag(Pt);
+param.R = 1*diag(Rt);
 
 load('Crane_NominalParameters.mat');
 [param.A,param.B,param.C,~] = genCraneODE(m,M,MR,r,9.81,Tx,Ty,Vx,Vy,param.Ts);
@@ -38,12 +38,8 @@ chAngle=[param.angleConstraint;  param.angleConstraint];
 DAngle=zeros(2,8);DAngle(1,5)=1;DAngle(2,7)=1;
 
 [DRect,clRect,chRect]=getRectConstraintsLoad(param.constraints.rect,r);
-DRect
 % constrained vector is Dx, hence
 D=[DAngle;DRect];
-% D=DRect;
-% ch=chAngle;
-% cl=clAngle;
 ch=[chAngle;chRect];
 cl=[clAngle;clRect];
 ul=[-1; -1];
@@ -51,16 +47,22 @@ uh=[1; 1];
 
 %% Compute stage constraint matrices and vector
 [Dt,Et,bt]=genStageConstraints(param.A,param.B,D,cl,ch,ul,uh);
-
+param.numConstraints=size(Dt,1);
 %% Compute trajectory constraints matrices and vector
-[param.DD,param.EE,param.bb]=genTrajectoryConstraints(Dt,Et,bt,N);
+[param.DD,param.EE,param.bb]=genTrajectoryConstraints(Dt,Et,bt,param.N);
 
 %% Compute QP constraint matrices
-[Gamma,Phi] = genPrediction(param.A,param.B,N);
-[param.F,param.J,param.L]=genConstraintMatrices(param.DD,param.EE,Gamma,Phi,N);
+[param.Gamma,param.Phi] = genPrediction(param.A,param.B,param.N);
+sDDi=size(param.DD)
+sEEi=size(param.EE)
+sbbi=size(param.bb)
+sGammai=size(param.Gamma)
+sPhii=size(param.Phi)
+
+[param.F,param.J,param.L]=genConstraintMatrices(param.DD,param.EE,param.Gamma,param.Phi,param.N);
 
 %% Compute QP cost matrices
-[param.H,param.G] = genCostMatrices(Gamma,Phi,Q,R,P,N);       
+[param.H,param.G] = genCostMatrices(param.Gamma,param.Phi,param.Q,param.R,param.P,param.N);       
 % Prepare cost and constraint matrices for mpcActiveSetSolver
 % See doc for mpcActiveSetSolver
 [Lchol,p] = chol(param.H,'lower');
@@ -101,13 +103,44 @@ end % End of myStateEstimator
 %% Modify the following function for your controller
 function u = myMPController(r, x_hat, param)
 %% Do not delete this line
+u=zeros(2,1);
 % Create the output array of the appropriate size
-u = zeros(2,1);
-u = genMPController(param.Linv,param.G,param.F,param.bb,param.J,param.L,x_hat,r,2);
+persistent it EE DD Gamma Phi bb
+if isempty(it)
+    it=0;
+    EE=param.EE;
+    DD=param.DD;
+    Gamma=param.Gamma;
+    Phi=param.Phi;
+    bb=param.bb;
+    F=param.F;
+    J=param.J;
+    L=param.L;
+    H=param.H;
+    G=param.G;
+else
+    % Shave off top of matrices as the horizon recedes
+    DD=reduceMatrix(DD,param.numConstraints,8);
+    EE=reduceMatrix(EE,param.numConstraints,2);
+    bb=reduceMatrix(bb,param.numConstraints,0);
+    Gamma=reduceMatrix(Gamma,8,2);
+    Phi=reduceMatrix(Phi,8,0);
+end 
+
+if (param.useShrinkingHorizon==true) && (it<param.N)
+    N=param.N-it;
+    [F,J,L]=genConstraintMatrices(DD,EE,Gamma,Phi,N);
+    [H,G] = genCostMatrices(Gamma,Phi,param.Q,param.R,param.P,N);
+    [Lchol , ~] = chol(H,'lower');
+    Linv = linsolve(Lchol,eye(size(Lchol)),struct('LT',true)); 
+    u = genMPController(Linv,G,F,bb,J,L,x_hat,r,2);
+    it=it+1;
+end 
 end % End of myMPController
 
 function [F,J,L] = genConstraintMatrices(DD,EE,Gamma,Phi,N)
-sx = size(DD,2) / N;
+sx = size(Gamma,1) / N;
+sx=8;
 shift = [zeros(sx, sx*(N-1));eye(sx*(N-1))]*[eye(sx*(N-1)), zeros(sx*(N-1),sx)];
 F = DD*shift*Gamma + EE;
 J = -DD*(shift*Phi + [eye(sx);zeros(sx*(N-1), sx)]);
@@ -124,7 +157,6 @@ function [Gamma,Phi] = genPrediction(A,B,N)
 sizeA=size(A,1);
 A_big=kron(eye(N),-A);
 B_big=kron(eye(N),B);
-
 A_big=[zeros(sizeA,N*sizeA);A_big];
 A_big=[A_big,zeros((N+1)*sizeA,sizeA)];
 A_big=A_big+eye((N+1)*sizeA);
@@ -134,7 +166,6 @@ Gamma=Gamma(sizeA+1:end,:);
 I=[eye(sizeA);zeros(N*sizeA,sizeA)];
 Phi=A_big\I;
 Phi=Phi(size(B,1)+1:end,:);
-
 end
 
 function [A,B,C,D] = genCraneODE(m,M,MR,r,g,Tx,Ty,Vx,Vy,Ts)
@@ -234,7 +265,7 @@ function [u,status,iA1] = genMPController(H,G,F,bb,J,L,x,xTarget,m)
     opt.DataType = 'double';
     opt.UseHessianAsInput = false;
 
-
+    
     % Compute the linear term of the cost function
     linMul = G*(x - xTarget);
     % Compute the matrix A and b for the inequality constraint formulation
@@ -301,6 +332,10 @@ DRect(1,5)=a1*length;DRect(1,7)=-b1*length;DRect(2,5)=a3*length;DRect(2,7)=-b3*l
 clRect=[min(c2,c1);min(c4,c3)];
 chRect=[max(c1,c2);max(c3,c4)];
 
+end
+
+function reducedMatrix = reduceMatrix(A,nRows,nCols)
+reducedMatrix=A(1:size(A,1)-nRows,1:size(A,2)-nCols);
 end
 
 

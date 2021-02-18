@@ -8,7 +8,6 @@ function [Gamma,Phi] = genPrediction(A,B,N)
 sizeA=size(A,1);
 A_big=kron(eye(N),-A);
 B_big=kron(eye(N),B);
-
 A_big=[zeros(sizeA,N*sizeA);A_big];
 A_big=[A_big,zeros((N+1)*sizeA,sizeA)];
 A_big=A_big+eye((N+1)*sizeA);
@@ -18,6 +17,5 @@ Gamma=Gamma(sizeA+1:end,:);
 I=[eye(sizeA);zeros(N*sizeA,sizeA)];
 Phi=A_big\I;
 Phi=Phi(size(B,1)+1:end,:);
-
 end
 

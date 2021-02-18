@@ -18,7 +18,7 @@ clear variables
 perturbSize = 0.1;
 
 % The part of the core coursework that is being worked on
-partNum = 3;
+partNum = 1;
 
 
 %% Load the parameters for the Simulation model
