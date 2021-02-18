@@ -26,9 +26,9 @@ param.useShrinkingHorizon=true;
 param.N=ceil(param.Tf/param.Ts)
 
 % Declare penalty matrices:
-Qt = [100 1 100 1 100 10 100 10];
+Qt = [0 0 0 0 0 0 0 0];
 Pt = [100 10 100 10 100 10 100 10];
-Rt = [1 1];
+Rt = [0.1 0.1];
 
 param.Q = 1*diag(Qt);
 param.P = 100*diag(Pt);
@@ -57,6 +57,10 @@ uh=[1; 1];
 param.numConstraints=size(Dt,1);
 %% Compute trajectory constraints matrices and vector
 [param.DD,param.EE,param.bb]=genTrajectoryConstraints(Dt,Et,bt,param.N);
+sDD=size(param.DD,2);
+param.DD=[param.DD;zeros(8,sDD-8),eye(8);zeros(8,sDD-8),-eye(8)];
+param.EE=[param.EE;zeros(16,size(param.EE,2))];
+param.bb=[param.bb;param.targetMod+param.eps_r;-param.targetMod+param.eps_r];
 
 %% Compute QP constraint matrices
 [param.Gamma,param.Phi] = genPrediction(param.A,param.B,param.N);
@@ -127,11 +131,11 @@ if isempty(it)
     G=param.G;
 else
     % Shave off matrices as the horizon shrinks
-    DD=reduceMatrix(DD,param.numConstraints,param.numStates);
-    EE=reduceMatrix(EE,param.numConstraints,param.numInputs);
-    bb=reduceMatrix(bb,param.numConstraints,0);
-    Gamma=reduceMatrix(Gamma,param.numStates,param.numInputs);
-    Phi=reduceMatrix(Phi,param.numStates,0);
+    DD=reduceMatrixTop(DD,param.numConstraints,param.numStates);
+    EE=reduceMatrixTop(EE,param.numConstraints,param.numInputs);
+    bb=reduceMatrixTop(bb,param.numConstraints,0);
+    Gamma=reduceMatrixBottom(Gamma,param.numStates,param.numInputs);
+    Phi=reduceMatrixBottom(Phi,param.numStates,0);
 end 
 
 if (param.useShrinkingHorizon==true) && (it<param.N)
@@ -338,10 +342,13 @@ chRect=[max(c1,c2);max(c3,c4)];
 
 end
 
-function reducedMatrix = reduceMatrix(A,nRows,nCols)
-reducedMatrix=A(1:size(A,1)-nRows,1:size(A,2)-nCols);
+function reducedMatrix = reduceMatrixTop(A,nRows,nCols)
+reducedMatrix=A(nRows+1:end,nCols+1:end);
 end
 
+function reducedMatrix = reduceMatrixBottom(A,nRows,nCols)
+reducedMatrix=A(1:end-nRows,1:end-nCols);
+end
 
 function [A,B,C] = getLineParamsStd(pointA,pointB)
 % Get line parameters in standard form Ax+By=C

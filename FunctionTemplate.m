@@ -26,9 +26,10 @@ param.useShrinkingHorizon=true;
 param.N=ceil(param.Tf/param.Ts)
 
 % Declare penalty matrices:
-Qt = [100 1 100 1 100 10 100 10];
+Qt = [0 2 0 2 5 0 5 0];
 Pt = [100 10 100 10 100 10 100 10];
-Rt = [1 1];
+Pt = [0 0 0 0 0 0 0 0];
+Rt = [0.1 0.1];
 
 param.Q = 1*diag(Qt);
 param.P = 100*diag(Pt);
@@ -57,6 +58,10 @@ uh=[1; 1];
 param.numConstraints=size(Dt,1);
 %% Compute trajectory constraints matrices and vector
 [param.DD,param.EE,param.bb]=genTrajectoryConstraints(Dt,Et,bt,param.N);
+sDD=size(param.DD,2);
+param.DD=[param.DD;zeros(8,sDD-8),eye(8);zeros(8,sDD-8),-eye(8)];
+param.EE=[param.EE;zeros(16,size(param.EE,2))];
+param.bb=[param.bb;param.targetMod+0.5*param.eps_r;-param.targetMod+0.5*param.eps_r];
 
 %% Compute QP constraint matrices
 [param.Gamma,param.Phi] = genPrediction(param.A,param.B,param.N);
@@ -339,11 +344,11 @@ chRect=[max(c1,c2);max(c3,c4)];
 end
 
 function reducedMatrix = reduceMatrixTop(A,nRows,nCols)
-reducedMatrix=A(nRows+1:size(A,1),nCols+1:size(A,2));
+reducedMatrix=A(nRows+1:end,nCols+1:end);
 end
 
 function reducedMatrix = reduceMatrixBottom(A,nRows,nCols)
-reducedMatrix=A(1:size(A,1)-nRows,1:size(A,2)-nCols);
+reducedMatrix=A(1:end-nRows,1:end-nCols);
 end
 
 function [A,B,C] = getLineParamsStd(pointA,pointB)
