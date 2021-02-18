@@ -8,8 +8,11 @@ param.K = [2, 0, 0, 0, 0, 0, 0, 0;
 % This is a sample way to send reference points
 param.xTar = shape.target(1);
 param.yTar = shape.target(2);
+param.target=shape.target;r = zeros(8,1);
 
-param.target=shape.target;
+% Make the crane go to (xTar, yTar)
+r=zeros(8,1); r(1,1) = param.xTar; r(3,1) = param.yTar;
+param.targetMod=r;
 param.start=shape.start;
 param.constraints=shape.constraints;
 param.eps_r=shape.eps_r;
@@ -124,11 +127,11 @@ if isempty(it)
     G=param.G;
 else
     % Shave off matrices as the horizon shrinks
-    DD=reduceMatrix(DD,param.numConstraints,param.numStates);
-    EE=reduceMatrix(EE,param.numConstraints,param.numInputs);
-    bb=reduceMatrix(bb,param.numConstraints,0);
-    Gamma=reduceMatrix(Gamma,param.numStates,param.numInputs);
-    Phi=reduceMatrix(Phi,param.numStates,0);
+    DD=reduceMatrixTop(DD,param.numConstraints,param.numStates);
+    EE=reduceMatrixTop(EE,param.numConstraints,param.numInputs);
+    bb=reduceMatrixTop(bb,param.numConstraints,0);
+    Gamma=reduceMatrixBottom(Gamma,param.numStates,param.numInputs);
+    Phi=reduceMatrixBottom(Phi,param.numStates,0);
 end 
 
 if (param.useShrinkingHorizon==true) && (it<param.N)
@@ -335,10 +338,13 @@ chRect=[max(c1,c2);max(c3,c4)];
 
 end
 
-function reducedMatrix = reduceMatrix(A,nRows,nCols)
-reducedMatrix=A(1:size(A,1)-nRows,1:size(A,2)-nCols);
+function reducedMatrix = reduceMatrixTop(A,nRows,nCols)
+reducedMatrix=A(nRows+1:size(A,1),nCols+1:size(A,2));
 end
 
+function reducedMatrix = reduceMatrixBottom(A,nRows,nCols)
+reducedMatrix=A(1:size(A,1)-nRows,1:size(A,2)-nCols);
+end
 
 function [A,B,C] = getLineParamsStd(pointA,pointB)
 % Get line parameters in standard form Ax+By=C

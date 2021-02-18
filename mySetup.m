@@ -8,8 +8,11 @@ param.K = [2, 0, 0, 0, 0, 0, 0, 0;
 % This is a sample way to send reference points
 param.xTar = shape.target(1);
 param.yTar = shape.target(2);
+param.target=shape.target;r = zeros(8,1);
 
-param.target=shape.target;
+% Make the crane go to (xTar, yTar)
+r=zeros(8,1); r(1,1) = param.xTar; r(3,1) = param.yTar;
+param.targetMod=r;
 param.start=shape.start;
 param.constraints=shape.constraints;
 param.eps_r=shape.eps_r;
