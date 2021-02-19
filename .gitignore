@@ -1,6 +1,6 @@
 # Windows default autosave extension
 *.asv
-
+*.m
 # OSX / *nix default autosave extension
 *.m~
 
@@ -29,3 +29,11 @@ codegen/
 
 # Octave session info
 octave-workspace
+
+!FunctionTemplate.m
+!defaultCourse.m
+!testMyDesign_Nonlinear.m
+!plotCourse.m
+!extractFunctions.m
+!crane_nl_model_student.m
+
