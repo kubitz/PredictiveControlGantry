@@ -11,7 +11,7 @@ D = rect(4,:);
 [a4,b4,c4] = getLineParamsStd(A,D);
 % Compute D matrix and upper/lower bounds
 DRect=zeros(2,8);DRect(1,1)=a1;DRect(1,3)=b1;DRect(2,1)=a3;DRect(2,3)=b3;
-DRect(1,5)=a1*length;DRect(1,7)=-b1*length;DRect(2,5)=a3*length;DRect(2,7)=-b3*length;
+DRect(1,5)=a1*length;DRect(1,7)=b1*length;DRect(2,5)=a3*length;DRect(2,7)=b3*length;
 clRect=[min(c2,c1);min(c4,c3)];
 chRect=[max(c1,c2);max(c3,c4)];
 

@@ -19,17 +19,14 @@ param.eps_r=shape.eps_r;
 param.eps_t=shape.eps_t;
 param.Wmax=shape.Wmax;
 param.Tf=shape.Tf;
-param.angleConstraint=3*pi/180;
+param.angleConstraint=2.5*pi/180;
 param.Ts = 0.05;
-param.Tf=shape.Tf;
-param.useShrinkingHorizon=true;
-param.N=ceil(param.Tf/param.Ts)
+param.N=ceil(param.Tf/param.Ts);
 
 % Declare penalty matrices:
-Qt = [0 2 0 2 5 0 5 0];
-Pt = [100 10 100 10 100 10 100 10];
+Qt = [0 10 0 10 0 0 0 0];
 Pt = [0 0 0 0 0 0 0 0];
-Rt = [0.1 0.1];
+Rt = [1 1];
 
 param.Q = 1*diag(Qt);
 param.P = 100*diag(Pt);
@@ -39,47 +36,43 @@ param.numInputs=size(param.R,1);
 
 
 load('Crane_NominalParameters.mat');
-[param.A,param.B,param.C,~] = genCraneODE(m,M,MR,r,9.81,Tx,Ty,Vx,Vy,param.Ts);
+[param.A,param.B,param.C,~] = genCraneODEmod(m,M,MR,r,9.81,Tx,Ty,Vx,Vy,param.Ts);
 %% Declare contraints
 clAngle=[-param.angleConstraint;  -param.angleConstraint];
 chAngle=[param.angleConstraint;  param.angleConstraint];
 DAngle=zeros(2,8);DAngle(1,5)=1;DAngle(2,7)=1;
+[DRectL,clRectL,chRectL]=getRectConstraintsLoad(param.constraints.rect,r);
+[DRect,clRect,chRect]=getRectConstraints(param.constraints.rect);
 
-[DRect,clRect,chRect]=getRectConstraintsLoad(param.constraints.rect,r);
 % constrained vector is Dx, hence
-D=[DAngle;DRect];
-ch=[chAngle;chRect];
-cl=[clAngle;clRect];
+D=[DAngle;DRectL;DRect];
+ch=[chAngle;chRectL;chRect];
+cl=[clAngle;clRectL;clRect];
 ul=[-1; -1];
 uh=[1; 1];
 
 %% Compute stage constraint matrices and vector
 [Dt,Et,bt]=genStageConstraints(param.A,param.B,D,cl,ch,ul,uh);
-param.numConstraints=size(Dt,1);
+param.numConstraints=size(Dt,1)
 %% Compute trajectory constraints matrices and vector
 [param.DD,param.EE,param.bb]=genTrajectoryConstraints(Dt,Et,bt,param.N);
 sDD=size(param.DD,2);
-param.DD=[param.DD;zeros(8,sDD-8),eye(8);zeros(8,sDD-8),-eye(8)];
-param.EE=[param.EE;zeros(16,size(param.EE,2))];
-param.bb=[param.bb;param.targetMod+0.5*param.eps_r;-param.targetMod+0.5*param.eps_r];
 
+% param.EE=[param.EE(1:end-32,:);zeros(32,size(param.EE,2))];
+% uc=param.targetMod+0.5*param.eps_r;
+% lc=-param.targetMod+0.5*param.eps_r;
+% param.bb=[param.bb(1:end-32,:);uc;lc;uc;lc];
+% param.DD=[param.DD(1:end-32,:);zeros(8,sDD-16),eye(8),zeros(8,8);zeros(8,sDD-16),-eye(8),zeros(8,8)];
+% param.DD=[param.DD;zeros(8,sDD-8),eye(8);zeros(8,sDD-8),-eye(8)];
+%% Add position constraint on the last step
+param.DD=[param.DD(1:end-16,:);zeros(8,sDD-8),eye(8);zeros(8,sDD-8),-eye(8)];
+param.EE=[param.EE(1:end-16,:);zeros(16,size(param.EE,2))];
+param.bb=[param.bb(1:end-16,:);param.targetMod+0.5*param.eps_r;-param.targetMod+0.5*param.eps_r];
 %% Compute QP constraint matrices
 [param.Gamma,param.Phi] = genPrediction(param.A,param.B,param.N);
-sDDi=size(param.DD)
-sEEi=size(param.EE)
-sbbi=size(param.bb)
-sGammai=size(param.Gamma)
-sPhii=size(param.Phi)
-
 [param.F,param.J,param.L]=genConstraintMatrices(param.DD,param.EE,param.Gamma,param.Phi,param.N);
-
 %% Compute QP cost matrices
 [param.H,param.G] = genCostMatrices(param.Gamma,param.Phi,param.Q,param.R,param.P,param.N);       
-% Prepare cost and constraint matrices for mpcActiveSetSolver
-% See doc for mpcActiveSetSolver
-[Lchol,p] = chol(param.H,'lower');
-param.Linv = linsolve(Lchol,eye(size(Lchol)),struct('LT',true));
-
 end % End of mySetup
 
 
@@ -91,7 +84,6 @@ function r = myTargetGenerator(x_hat, param)
 % into myMPController, so its size must match what is expected by the code
 % there.
 r = zeros(8,1);
-
 % Make the crane go to (xTar, yTar)
 r(1,1) = param.xTar;
 r(3,1) = param.yTar;
@@ -139,7 +131,7 @@ else
     Phi=reduceMatrixBottom(Phi,param.numStates,0);
 end 
 
-if (param.useShrinkingHorizon==true) && (it<param.N)
+if (it<param.N
     N=param.N-it;
     [F,J,L]=genConstraintMatrices(DD,EE,Gamma,Phi,N);
     [H,G] = genCostMatrices(Gamma,Phi,param.Q,param.R,param.P,N);
@@ -177,7 +169,7 @@ Phi=A_big\I;
 Phi=Phi(size(B,1)+1:end,:);
 end
 
-function [A,B,C,D] = genCraneODE(m,M,MR,r,g,Tx,Ty,Vx,Vy,Ts)
+function [A,B,C,D] = genCraneODEmod(m,M,MR,r,g,Tx,Ty,Vx,Vy,Ts)
 % Inputs:
 % m = Pendulum mass (kg)
 % M = Cart mass (kg)
@@ -190,9 +182,6 @@ function [A,B,C,D] = genCraneODE(m,M,MR,r,g,Tx,Ty,Vx,Vy,Ts)
 % Ts = Sample time of the discrete-time system (s)
 % Outputs:
 % A,B,C,D = State Space matrices of a discrete-time or continuous-time state space model
-
-% The motors in use on the gantry crane are identical and therefore Vx=Vy.
- 
 A =[
  
 [0,                 1, 0,         0,                                0, 0,                  0, 0]
@@ -239,8 +228,6 @@ function [H,G] = genCostMatrices(Gamma,Phi,Q,R,P,N)
 % Q is the stage cost weight on the states, i.e. x'Qx
 % R is the stage cost weight on the inputs, i.e. u'Ru
 % P is the terminal weight on the final state
-
-    % Your code goes here
     V=kron(eye(N-1),Q);
     bigR=kron(eye(N),R);
     V=blkdiag(V,P);
@@ -273,23 +260,17 @@ function [u,status,iA1] = genMPController(H,G,F,bb,J,L,x,xTarget,m)
     opt.ConstraintTolerance = 1e-3;
     opt.DataType = 'double';
     opt.UseHessianAsInput = true;
-
-    
     % Compute the linear term of the cost function
     linMul = G*(x - xTarget);
     % Compute the matrix A and b for the inequality constraint formulation
     Acon = F;
-    sJ=size(J);
-    sx=size(x);
-    sL=size(L);
-    sT=size(xTarget);
     RHScon = J*x + L*xTarget + bb;
-    
     [U,status,iA1]=mpcActiveSetSolver(H,linMul,Acon,RHScon,[],zeros(0,1),false(size(bb)),opt);
     u=U(1:m);
 end
 
 function [Dt,Et,bt] = genStageConstraints(A,B,D,cl,ch,ul,uh)
+% Generate constraint for a single step
     sU=size(ul,1);
     sA=size(A,2);
     sB=size(B,2);
@@ -301,12 +282,15 @@ function [Dt,Et,bt] = genStageConstraints(A,B,D,cl,ch,ul,uh)
 end
 
 function [DD,EE,bb] = genTrajectoryConstraints(Dt,Et,bt,N)
+% Generate Constraints on the whole trajectory
 DD=kron(eye(N),Dt);
 EE=kron(eye(N),Et);
 bb=kron(ones(N,1),bt);
 end
 
 function [DRect,clRect,chRect] = getRectConstraints(rect)
+%Compute constraint on the cart based on rectangular shape
+
 A = rect(1,:);
 B = rect(2,:);
 C = rect(3,:);
@@ -325,22 +309,27 @@ end
 
 
 function [DRect,clRect,chRect] = getRectConstraintsLoad(rect,length)
+%Compute the constraint on the load based a rectangular shape, and length
+%of the string
+
 A = rect(1,:);
 B = rect(2,:);
 C = rect(3,:);
 D = rect(4,:);
+
 % First two parallel edges - computed in same direction
 [a1,b1,c1] = getLineParamsStd(A,B);
 [a2,b2,c2] = getLineParamsStd(D,C);
+
 % Second set of parallel edges - computed in same direction
 [a3,b3,c3] = getLineParamsStd(B,C);
 [a4,b4,c4] = getLineParamsStd(A,D);
+
 % Compute D matrix and upper/lower bounds
 DRect=zeros(2,8);DRect(1,1)=a1;DRect(1,3)=b1;DRect(2,1)=a3;DRect(2,3)=b3;
-DRect(1,5)=a1*length;DRect(1,7)=-b1*length;DRect(2,5)=a3*length;DRect(2,7)=-b3*length;
+DRect(1,5)=a1*length;DRect(1,7)=b1*length;DRect(2,5)=a3*length;DRect(2,7)=b3*length;
 clRect=[min(c2,c1);min(c4,c3)];
 chRect=[max(c1,c2);max(c3,c4)];
-
 end
 
 function reducedMatrix = reduceMatrixTop(A,nRows,nCols)

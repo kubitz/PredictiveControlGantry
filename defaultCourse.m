@@ -18,7 +18,7 @@ if coursenum == 1
     start= [0.0917481275985262, 0.49153563561776936];
     target= [-0.0819,-0.493];    
     Wmax = 1;
-    Tf   = 5;
+    Tf   = 10;
 elseif coursenum == 2
     % The shape for the second part
 %     constraints.rect = [0.00, 0.05;
@@ -55,6 +55,25 @@ elseif coursenum == 3
     target= [0.5, 0.05];
     Wmax = 1;
     Tf   = 5;
+
+elseif coursenum == 4
+    % The shape for the first part
+    constraints.rect = [0.00, 0.01;
+                        0.49, 0.50;
+                        0.50, 0.49;
+                        0.01, 0.00];
+                   
+    constraints.ellipses = {};
+   
+    penalties = [-1, -2, -1, -1];
+   
+    start  = [0.5, 0.49];
+    target = [0.0, 0.01];
+   
+    Wmax = 1;
+    Tf   = 2.75;
+
+
 end
 
 

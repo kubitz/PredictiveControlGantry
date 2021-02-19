@@ -19,17 +19,15 @@ param.eps_r=shape.eps_r;
 param.eps_t=shape.eps_t;
 param.Wmax=shape.Wmax;
 param.Tf=shape.Tf;
-param.angleConstraint=3*pi/180;
+param.angleConstraint=2.5*pi/180;
 param.Ts = 0.05;
-param.Tf=shape.Tf;
 param.useShrinkingHorizon=true;
-param.N=ceil(param.Tf/param.Ts)
+param.N=ceil(param.Tf/param.Ts);
 
 % Declare penalty matrices:
-Qt = [0 2 0 2 5 0 5 0];
-Pt = [100 10 100 10 100 10 100 10];
+Qt = [0 10 0 10 0 0 0 0];
 Pt = [0 0 0 0 0 0 0 0];
-Rt = [0.1 0.1];
+Rt = [1 1];
 
 param.Q = 1*diag(Qt);
 param.P = 100*diag(Pt);
@@ -39,38 +37,41 @@ param.numInputs=size(param.R,1);
 
 
 load('Crane_NominalParameters.mat');
-[param.A,param.B,param.C,~] = genCraneODE(m,M,MR,r,9.81,Tx,Ty,Vx,Vy,param.Ts);
+[param.A,param.B,param.C,~] = genCraneODEmod(m,M,MR,r,9.81,Tx,Ty,Vx,Vy,param.Ts);
 %% Declare contraints
 clAngle=[-param.angleConstraint;  -param.angleConstraint];
 chAngle=[param.angleConstraint;  param.angleConstraint];
 DAngle=zeros(2,8);DAngle(1,5)=1;DAngle(2,7)=1;
 
-[DRect,clRect,chRect]=getRectConstraintsLoad(param.constraints.rect,r);
+[DRectL,clRectL,chRectL]=getRectConstraintsLoad(param.constraints.rect,r);
+[DRect,clRect,chRect]=getRectConstraints(param.constraints.rect);
 % constrained vector is Dx, hence
-D=[DAngle;DRect];
-ch=[chAngle;chRect];
-cl=[clAngle;clRect];
+D=[DAngle;DRectL;DRect];
+ch=[chAngle;chRectL;chRect];
+cl=[clAngle;clRectL;clRect];
 ul=[-1; -1];
 uh=[1; 1];
 
 %% Compute stage constraint matrices and vector
 [Dt,Et,bt]=genStageConstraints(param.A,param.B,D,cl,ch,ul,uh);
-param.numConstraints=size(Dt,1);
+param.numConstraints=size(Dt,1)
 %% Compute trajectory constraints matrices and vector
 [param.DD,param.EE,param.bb]=genTrajectoryConstraints(Dt,Et,bt,param.N);
 sDD=size(param.DD,2);
-param.DD=[param.DD;zeros(8,sDD-8),eye(8);zeros(8,sDD-8),-eye(8)];
-param.EE=[param.EE;zeros(16,size(param.EE,2))];
-param.bb=[param.bb;param.targetMod+0.5*param.eps_r;-param.targetMod+0.5*param.eps_r];
 
+% param.EE=[param.EE(1:end-32,:);zeros(32,size(param.EE,2))];
+% uc=param.targetMod+0.5*param.eps_r;
+% lc=-param.targetMod+0.5*param.eps_r;
+% param.bb=[param.bb(1:end-32,:);uc;lc;uc;lc];
+% 
+% param.DD=[param.DD(1:end-32,:);zeros(8,sDD-16),eye(8),zeros(8,8);zeros(8,sDD-16),-eye(8),zeros(8,8)];
+% param.DD=[param.DD;zeros(8,sDD-8),eye(8);zeros(8,sDD-8),-eye(8)];
+
+param.DD=[param.DD(1:end-16,:);zeros(8,sDD-8),eye(8);zeros(8,sDD-8),-eye(8)];
+param.EE=[param.EE(1:end-16,:);zeros(16,size(param.EE,2))];
+param.bb=[param.bb(1:end-16,:);param.targetMod+0.5*param.eps_r;-param.targetMod+0.5*param.eps_r];
 %% Compute QP constraint matrices
 [param.Gamma,param.Phi] = genPrediction(param.A,param.B,param.N);
-sDDi=size(param.DD)
-sEEi=size(param.EE)
-sbbi=size(param.bb)
-sGammai=size(param.Gamma)
-sPhii=size(param.Phi)
-
 [param.F,param.J,param.L]=genConstraintMatrices(param.DD,param.EE,param.Gamma,param.Phi,param.N);
 
 %% Compute QP cost matrices

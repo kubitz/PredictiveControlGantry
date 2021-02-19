@@ -22,8 +22,6 @@ function [u,status,iA1] = genMPController(H,G,F,bb,J,L,x,xTarget,m)
     opt.ConstraintTolerance = 1e-3;
     opt.DataType = 'double';
     opt.UseHessianAsInput = true;
-
-    
     % Compute the linear term of the cost function
     linMul = G*(x - xTarget);
     % Compute the matrix A and b for the inequality constraint formulation
