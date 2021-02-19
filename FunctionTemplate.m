@@ -131,7 +131,7 @@ else
     Phi=reduceMatrixBottom(Phi,param.numStates,0);
 end 
 
-if (it<param.N
+if (it<param.N)
     N=param.N-it;
     [F,J,L]=genConstraintMatrices(DD,EE,Gamma,Phi,N);
     [H,G] = genCostMatrices(Gamma,Phi,param.Q,param.R,param.P,N);
