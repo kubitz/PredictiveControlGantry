@@ -1,7 +1,22 @@
 function [ course ] = defaultCourse( dis, coursenum )
 %DEFAULTCOURSE Generate the default course for the core coursework
-
-if coursenum == 1
+if coursenum == 0
+    % The shape for the first part
+    constraints.rect = [0.00, 0.05;
+                        0.45, 0.50;
+                        0.50, 0.45;
+                        0.05, 0.00];
+                    
+    constraints.ellipses = {};
+    
+    penalties = [-1, -2, -1, -1];
+    
+    start  = [0.05, 0.05];
+    target = [0.4, 0.4];
+    
+    Wmax = 1;
+    Tf   = 5;
+elseif coursenum == 1
     % The shape for the first part
 %     constraints.rect = [0.00, 0.05;
 %                         0.45, 0.50;
@@ -18,7 +33,7 @@ if coursenum == 1
     start= [0.0917481275985262, 0.49153563561776936];
     target= [-0.0819,-0.493];    
     Wmax = 1;
-    Tf   = 10;
+    Tf   = 3;
 elseif coursenum == 2
     % The shape for the second part
 %     constraints.rect = [0.00, 0.05;
@@ -72,8 +87,22 @@ elseif coursenum == 4
    
     Wmax = 1;
     Tf   = 2.75;
-
-
+elseif coursenum == 5
+constraints.rect = [
+                        0.00, 0.00;
+                        0.00, 0.5;
+                        0.3, 0.5;
+                        0.3, 0.00];
+                   
+    constraints.ellipses = {};
+   
+    penalties = [-1, -2, -1, -1];
+   
+    start  = [0.0, 0.01];
+    target = [0.25, 0.5];
+   
+    Wmax = 0.2;
+    Tf   = 5;
 end
 
 
