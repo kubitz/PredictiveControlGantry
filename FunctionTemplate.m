@@ -24,19 +24,6 @@ param.angleConstraint=2.5*pi/180;
 param.Ts = 0.1;
 param.N=20;
 
-
-
-% Declare penalty matrices:
-Qt = [0 10 0 10 0 0 0 0];
-Pt = [0 0 0 0 0 0 0 0];
-Rt = [1 1];
-
-param.Q = 1*diag(Qt);
-param.P = 100*diag(Pt);
-param.R = 1*diag(Rt);
-param.numStates=size(param.Q,1);
-param.numInputs=size(param.R,1);
-
 param.nx = 8;
 param.ny = 8;
 param.nu = 2;
@@ -48,8 +35,18 @@ param.nlobj.Ts = param.Ts;
 param.nlobj.PredictionHorizon = param.N;
 param.nlobj.ControlHorizon = 20;
 param.nlobj.Weights.OutputVariables = [10 0 10 0 1 0 1 0];
+% Add constraints on inputs
+for ct = 1:param.nu
+    param.nlobj.MV(ct).Min = -1;
+    param.nlobj.MV(ct).Max = 1;
+end
 
-x0 = [-10;0;-10;0;0;0;0;0];  % robot parks at [-10, -10], facing north
+
+
+
+param.nlobj.Optimization.CustomIneqConFcn = @(X,U,e,data)myIneqConFunction(X,U,e,data,shape.constraints,r);
+
+x0 = [-10;0;-10; 0; 0; 0; 0; 0];  % robot parks at [-10, -10], facing north
 u0 = zeros(param.nu,1);           % thrust is zero
 validateFcns(param.nlobj,x0,u0);
 
@@ -156,3 +153,56 @@ dx(7, 1)  = x8;
 dx(8, 1)  = (-cos(x5) .* g .* sin(x7) .* m .* (M .* cos(x5) .^ 2 + MR) .* cos(x7) .^ 2 + ((-M .* (Tl .* x10 - fl) .* cos(x5) .^ 2 - M .^ 2 .* x6 .^ 2 .* x9 - x6 .^ 2 .* x9 .* MR .* M - MR .* (Tl .* x10 - fl)) .* sin(x7) - (-Ty .* x4 + fy) .* (M + MR)) .* cos(x7) - 0.2e1 .* ((g .* (M + MR) .* cos(x5) ./ 0.2e1 + sin(x5) .* (Tx .* x2 - fx) ./ 0.2e1) .* sin(x7) + x10 .* x8 .* (M + MR)) .* M) ./ x9 ./ M ./ (M + MR);
 
 end
+
+
+function [DRect,clRect,chRect] = getRectConstraints(rect)
+%Compute constraint on the cart based on rectangular shape
+
+A = rect(1,:);
+B = rect(2,:);
+C = rect(3,:);
+D = rect(4,:);
+% First two parallel edges - computed in same direction
+[a1,b1,c1] = getLineParamsStd(A,B);
+[a2,b2,c2] = getLineParamsStd(D,C);
+% Second set of parallel edges - computed in same direction
+[a3,b3,c3] = getLineParamsStd(B,C);
+[a4,b4,c4] = getLineParamsStd(A,D);
+% Compute D matrix and upper/lower bounds
+DRect=zeros(2,2);DRect(1,1)=a1;DRect(1,2)=b1;DRect(2,1)=a3;DRect(2,2)=b3;
+clRect=[min(c2,c1);min(c4,c3)];
+chRect=[max(c1,c2);max(c3,c4)];
+end
+
+
+function cineq = myIneqConFunction(X,U,e,data,constraints,r)
+
+p = data.PredictionHorizon;
+posX = X(2:p+1,1);
+posY = X(2:p+1,3);
+angleX = X(2:p+1,5);
+angleY = X(2:p+1,7);
+
+[DRect,clRect,chRect] = getRectConstraints(constraints.rect);
+
+cineq = [
+%    Constraints on Cart
+     posX*DRect(1,1)+posY*DRect(1,2)-chRect(1);
+    -posX*DRect(1,1)-posY*DRect(1,2)+clRect(1);
+     posX*DRect(2,1)+posY*DRect(2,2)-chRect(2);
+    -posX*DRect(2,1)-posY*DRect(2,2)+clRect(2);
+%    Constraints on Load
+     DRect(1,1)*(posX+r*angleX) + DRect(1,2)*(posY+r*angleY)-chRect(1);
+    -DRect(1,1)*(posX+r*angleX) - DRect(1,2)*(posY+r*angleY)+clRect(1);
+     DRect(2,1)*(posX+r*angleX) + DRect(2,2)*(posY+r*angleY)-chRect(2);
+    -DRect(2,1)*(posX+r*angleX) - DRect(2,2)*(posY+r*angleY)+clRect(2);
+     ];
+    for i = 1:length(constraints.ellipses)
+         el=constraints.ellipses{i};
+         elCon=-(((posX-el.xc)/el.a).^2 + ((posY-el.yc)/el.b).^2) +1;
+         cineq = [cineq; elCon]; 
+    end
+ end     
+
+ 
+
