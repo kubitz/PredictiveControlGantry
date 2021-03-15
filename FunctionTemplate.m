@@ -21,9 +21,9 @@ param.eps_t=shape.eps_t;
 param.Wmax=shape.Wmax;
 param.Tf=shape.Tf;
 param.angleConstraint=2.5*pi/180;
-param.Ts = 0.1;
 param.N=20;
-
+param.Ts = param.Tf/param.N
+param.tolerances=shape.tolerances.state(1:8)*0.5;
 param.nx = 8;
 param.ny = 8;
 param.nu = 2;
@@ -33,18 +33,37 @@ param.nlobj = nlmpc(param.nx,param.ny,param.nu);
 param.nlobj.Model.StateFcn = @(x,u) crane_nl_model_mod(x, u, Tx, Ty ,Tl ,Vx ,Vy ,MR ,M ,m, r, Vl);
 param.nlobj.Ts = param.Ts;
 param.nlobj.PredictionHorizon = param.N;
-param.nlobj.ControlHorizon = 20;
-param.nlobj.Weights.OutputVariables = [10 0 10 0 1 0 1 0];
+param.nlobj.ControlHorizon = param.N;
+param.nlobj.Weights.OutputVariables = [10 0 10 0 5 0 5 0];
+
 % Add constraints on inputs
 for ct = 1:param.nu
     param.nlobj.MV(ct).Min = -1;
     param.nlobj.MV(ct).Max = 1;
 end
+% param.nlobj.Optimization.ReplaceStandardCost=true;
+param.nlobj.Optimization.CustomIneqConFcn = @(X,U,e,data)myIneqConFunction(X,U,e,data,shape.constraints,r,param);
+% param.nlobj.Optimization.CustomCostFcn = @myCostFunction;
+param.nloptions = nlmpcmoveopt;
+pos = 1; vel = 100; angle = 0 ; angle_vel = 2; 
+
+Q = diag([pos vel pos vel angle angle_vel angle angle_vel]);
+%Q = [pos vel pos vel angle angle_vel angle angle_vel];
+ 
+%R = [2 2];
+R = diag([1 1]);
+
+J = 0; 
+%% Input rate
+% nlobj.Weights.ManipulatedVariablesRate = [0 0];
+costFun_k = @(x,u) x'*Q*x + u'*R*u + J*(max(0,u(1)*x(2)) + max(0,u(2)*x(3))); 
+
+% nlobj.Weights.OutputVariables = Q;
+% nlobj.Weights.ManipulatedVariables = R ; 
 
 
+nlobj.Optimization.CustomCostFcn = @(x,u,e,data) genCostFun(x,u,e,data,costFun_k);
 
-
-param.nlobj.Optimization.CustomIneqConFcn = @(X,U,e,data)myIneqConFunction(X,U,e,data,shape.constraints,r);
 
 x0 = [-10;0;-10; 0; 0; 0; 0; 0];  % robot parks at [-10, -10], facing north
 u0 = zeros(param.nu,1);           % thrust is zero
@@ -87,17 +106,26 @@ end % End of myStateEstimator
 %% Modify the following function for your controller
 function u = myMPController(r, x_hat, param)
 %% Do not delete this line
-u=zeros(param.numInputs,1);
+u=zeros(param.nu,1);
 % Create the output array of the appropriate size
-persistent it lastMv
+persistent it lastMv options
+
 if isempty(it)
+    options = nlmpcmoveopt;
     it=0;
     lastMv = zeros(param.nu,1);
 end 
 
-if (it<param.N)
-    N=param.N-it;
-    u = nlmpcmove(param.nlobj,x_hat,lastMv,param.targetMod.')
+% if (it>1)
+%     param.nlobj.Optimization.UseSuboptimalSolution=true;
+%     param.nlobj.Optimization.SolverOptions.MaxIter=2;
+% end 
+
+if (it<param.N-1)
+    param.nlobj.PredictionHorizon = param.N-it;
+    param.nlobj.ControlHorizon = param.N-it;
+    [u,options,info] = nlmpcmove(param.nlobj,x_hat,lastMv,param.targetMod.',[],options);
+    conv=info.Iterations
     it=it+1;
     lastMv=u;
 end 
@@ -175,13 +203,37 @@ chRect=[max(c1,c2);max(c3,c4)];
 end
 
 
-function cineq = myIneqConFunction(X,U,e,data,constraints,r)
+
+function J = myCostFunction(X,U,e,data)
+% xWork=max(U(1:end-1,data.MVIndex(1)).*X(2:end,2),0);
+% yWork=max(U(1:end-1,data.MVIndex(2)).*X(2:end,4),0);[10 0 10 0 5 0 5 0]
+Q=[10 0 10 0 5 0 5 0];
+R=[1 1];
+J=max(0,U(1:end-1,1)*X(2:end)) + max(0,U(1:end-1,1)*X(4));
+J=0
+end 
+
+function [ costFun ] = genCostFun(x,u,e,data,costFunk)
+p = data.PredictionHorizon; 
+costFun = [];
+
+for i = 2:p+1
+    xk = x(i,:);
+    uk = u(i,:);
+    costFun = costFunk(xk',uk');
+end
+end
+
+% costFun_k = @(x,u) x'*Q*x + u'*R*u + J*(max(0,u(1)*x(1)) + max(0,u(2)*x(3))); 
+
+function cineq = myIneqConFunction(X,U,e,data,constraints,r,param)
 
 p = data.PredictionHorizon;
 posX = X(2:p+1,1);
 posY = X(2:p+1,3);
 angleX = X(2:p+1,5);
 angleY = X(2:p+1,7);
+stepsLeft = size(X,1);
 
 [DRect,clRect,chRect] = getRectConstraints(constraints.rect);
 
@@ -192,17 +244,32 @@ cineq = [
      posX*DRect(2,1)+posY*DRect(2,2)-chRect(2);
     -posX*DRect(2,1)-posY*DRect(2,2)+clRect(2);
 %    Constraints on Load
-     DRect(1,1)*(posX+r*angleX) + DRect(1,2)*(posY+r*angleY)-chRect(1);
+     DRect(1,1)*(posX+r*angleX) + DRect(1,2)*(posX+r*angleX)-chRect(1);
     -DRect(1,1)*(posX+r*angleX) - DRect(1,2)*(posY+r*angleY)+clRect(1);
      DRect(2,1)*(posX+r*angleX) + DRect(2,2)*(posY+r*angleY)-chRect(2);
     -DRect(2,1)*(posX+r*angleX) - DRect(2,2)*(posY+r*angleY)+clRect(2);
      ];
-    for i = 1:length(constraints.ellipses)
+%  Constraints on cart for elipsis   
+ for i = 1:length(constraints.ellipses)
          el=constraints.ellipses{i};
-         elCon=-(((posX-el.xc)/el.a).^2 + ((posY-el.yc)/el.b).^2) +1;
-         cineq = [cineq; elCon]; 
-    end
- end     
+         elCon=-((((posX)-el.xc)/el.a).^2 + (((posY)-el.yc)/el.b).^2) +1.05;
+         elConLd=-((((posX+r*angleX)-el.xc)/el.a).^2 + (((posY+r*angleY)-el.yc)/el.b).^2) +1.05;
+         cineq = [cineq; elCon; elConLd]; 
+ end
+
+for i= 1:min(5,stepsLeft-1)
+    xFin=X(p+2-i,:);
+    cineq=[ cineq;
+            xFin' - param.targetMod - param.tolerances;
+           -xFin' + param.targetMod - param.tolerances;
+            xFin(1) + r*xFin(5) - param.target(1) - param.tolerances(1);
+           -xFin(1) - r*xFin(5) + param.target(1) - param.tolerances(1);
+            xFin(3) + r*xFin(7) - param.target(2) - param.tolerances(3);
+          - xFin(3) - r*xFin(7) + param.target(2) - param.tolerances(3)
+          ];
+end
+
+end
 
  
 

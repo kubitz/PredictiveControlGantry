@@ -15,7 +15,7 @@ clear variables
 
 % The percentage perturbation to perform on each crane model parameter
 % The default is 10%
-perturbSize = 0.1;
+perturbSize = 0;
 
 % The part of the core coursework that is being worked on
 partNum = 2;

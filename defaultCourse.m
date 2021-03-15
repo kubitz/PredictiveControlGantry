@@ -46,7 +46,21 @@ elseif coursenum == 2
     ellipse.xc = 0.25;
     ellipse.yc = -0.23;
     constraints.ellipses{1} = ellipse;
-    penalties = [-1, -1, -1, -1, -1];
+    % Define the new ellipse
+    ellipse.a  = 0.3;
+    ellipse.b  = 0.17;
+    ellipse.xc = 0.25;
+    ellipse.yc = 0.35;
+    constraints.ellipses{2} = ellipse;
+
+    ellipse.a  = 0.01;
+    ellipse.b  = 0.01;
+    ellipse.xc = 0.1;
+    ellipse.yc = 0.08;
+    constraints.ellipses{3} = ellipse;
+    
+    
+    penalties = [-1, -1, -1, -1, -1, -1, -1];
     
     start  = [0.05, 0.05];
     target = [0.45, 0.05];
@@ -85,19 +99,31 @@ elseif coursenum == 4
     Wmax = 1;
     Tf   = 2.75;
 elseif coursenum == 5
-constraints.rect = [
-                        0.00, 0.00;
-                        0.00, 0.5;
-                        0.3, 0.5;
-                        0.3, 0.00];
-                   
-    constraints.ellipses = {};
-   
-    penalties = [-1, -2, -1, -1];
-   
-    start  = [0.0, 0.01];
-    target = [0.25, 0.5];
-   
+    constraints.rect=[-0.75,-0.75;0.75,-0.75;0.75,0.75;-0.75,0.75]
+
+    ellipse0.xc=0.0;
+    ellipse0.yc=0.0;
+    ellipse0.a=0.25;
+    ellipse0.b=0.25;
+
+    ellipse1.xc=0.2;
+    ellipse1.yc=0.2;
+    ellipse1.a=0.05;
+    ellipse1.b=0.75;
+
+    ellipse2.xc=-0.2;
+    ellipse2.yc=-0.7;
+    ellipse2.a=0.05;
+    ellipse2.b=0.35;
+
+    ellipse3.xc=0.0;
+    ellipse3.yc=0.0;
+    ellipse3.a=0.6;
+    ellipse3.b=0.05;
+    constraints.ellipses={ellipse0,ellipse1,ellipse2,ellipse3};
+    penalties = [-1, -1, -1, -1, -1, -1, -1, -1];
+    start=[0, 0.6];
+    target=[0.5, 0.5];
     Wmax = 0.2;
     Tf   = 5;
 end
