@@ -20,8 +20,7 @@ param.eps_r=shape.eps_r;
 param.eps_t=shape.eps_t;
 param.Wmax=shape.Wmax;
 param.Tf=shape.Tf;
-param.angleConstraint=2.5*pi/180;
-param.N=20;
+param.N=100;
 param.Ts = param.Tf/param.N
 param.tolerances=shape.tolerances.state(1:8)*0.5;
 param.nx = 8;
@@ -34,7 +33,14 @@ param.nlobj.Model.StateFcn = @(x,u) crane_nl_model_mod(x, u, Tx, Ty ,Tl ,Vx ,Vy 
 param.nlobj.Ts = param.Ts;
 param.nlobj.PredictionHorizon = param.N;
 param.nlobj.ControlHorizon = param.N;
-param.nlobj.Weights.OutputVariables = [10 0 10 0 5 0 5 0];
+param.nlobj.Weights.OutputVariables = [0 5 0 5 0 0 0 0];
+param.nlobj.Weights.ManipulatedVariables = [5 5];
+nlobj.Optimization.SolverOptions.FunctionTolerance = 0.001;
+nlobj.Optimization.SolverOptions.StepTolerance = 0.001;
+nlobj.Optimization.SolverOptions.MaxIter = 60;
+nlobj.Optimization.SolverOptions.ConstraintTolerance = 0.01;
+nlobj.Optimization.UseSuboptimalSolution = true;
+
 
 % Add constraints on inputs
 for ct = 1:param.nu
@@ -43,26 +49,10 @@ for ct = 1:param.nu
 end
 % param.nlobj.Optimization.ReplaceStandardCost=true;
 param.nlobj.Optimization.CustomIneqConFcn = @(X,U,e,data)myIneqConFunction(X,U,e,data,shape.constraints,r,param);
-% param.nlobj.Optimization.CustomCostFcn = @myCostFunction;
 param.nloptions = nlmpcmoveopt;
-pos = 1; vel = 100; angle = 0 ; angle_vel = 2; 
 
-Q = diag([pos vel pos vel angle angle_vel angle angle_vel]);
-%Q = [pos vel pos vel angle angle_vel angle angle_vel];
- 
-%R = [2 2];
-R = diag([1 1]);
+param.pathGuess = getPathGuess(shape, 200, 1.1, param.N);
 
-J = 0; 
-%% Input rate
-% nlobj.Weights.ManipulatedVariablesRate = [0 0];
-costFun_k = @(x,u) x'*Q*x + u'*R*u + J*(max(0,u(1)*x(2)) + max(0,u(2)*x(3))); 
-
-% nlobj.Weights.OutputVariables = Q;
-% nlobj.Weights.ManipulatedVariables = R ; 
-
-
-nlobj.Optimization.CustomCostFcn = @(x,u,e,data) genCostFun(x,u,e,data,costFun_k);
 
 
 x0 = [-10;0;-10; 0; 0; 0; 0; 0];  % robot parks at [-10, -10], facing north
@@ -114,20 +104,31 @@ if isempty(it)
     options = nlmpcmoveopt;
     it=0;
     lastMv = zeros(param.nu,1);
+    firstStateGuess=zeros(param.N,8);
+    for i = 1:param.N
+        firstStateGuess(i,1)=param.pathGuess(i,1);
+        firstStateGuess(i,3)=param.pathGuess(i,2);
+    end
+    options.X0=firstStateGuess;
+    param.nlobj.Optimization.RunAsLinearMPC="TimeVarying"
+    [u,options,info] = nlmpcmove(param.nlobj,x_hat,lastMv,param.targetMod.',[],options);
+%     param.nlobj.Optimization.RunAsLinearMPC="Off";
+%     [u,options,info] = nlmpcmove(param.nlobj,x_hat,lastMv,param.targetMod.',[],options);
+else 
+    param.nlobj.Optimization.RunAsLinearMPC="TimeVarying";
 end 
-
 % if (it>1)
 %     param.nlobj.Optimization.UseSuboptimalSolution=true;
 %     param.nlobj.Optimization.SolverOptions.MaxIter=2;
 % end 
 
-if (it<param.N-1)
+if (it<param.N-2)
     param.nlobj.PredictionHorizon = param.N-it;
     param.nlobj.ControlHorizon = param.N-it;
     [u,options,info] = nlmpcmove(param.nlobj,x_hat,lastMv,param.targetMod.',[],options);
     conv=info.Iterations
     it=it+1;
-    lastMv=u;
+    lastMv=u
 end 
 end % End of myMPController
 
@@ -234,42 +235,292 @@ posY = X(2:p+1,3);
 angleX = X(2:p+1,5);
 angleY = X(2:p+1,7);
 stepsLeft = size(X,1);
-
 [DRect,clRect,chRect] = getRectConstraints(constraints.rect);
 
 cineq = [
 %    Constraints on Cart
-     posX*DRect(1,1)+posY*DRect(1,2)-chRect(1);
-    -posX*DRect(1,1)-posY*DRect(1,2)+clRect(1);
-     posX*DRect(2,1)+posY*DRect(2,2)-chRect(2);
-    -posX*DRect(2,1)-posY*DRect(2,2)+clRect(2);
+     posX*DRect(1,1)+posY*DRect(1,2)-chRect(1)-e;
+    -posX*DRect(1,1)-posY*DRect(1,2)+clRect(1)-e;
+     posX*DRect(2,1)+posY*DRect(2,2)-chRect(2)-e;
+    -posX*DRect(2,1)-posY*DRect(2,2)+clRect(2)-e;
 %    Constraints on Load
-     DRect(1,1)*(posX+r*angleX) + DRect(1,2)*(posX+r*angleX)-chRect(1);
-    -DRect(1,1)*(posX+r*angleX) - DRect(1,2)*(posY+r*angleY)+clRect(1);
-     DRect(2,1)*(posX+r*angleX) + DRect(2,2)*(posY+r*angleY)-chRect(2);
-    -DRect(2,1)*(posX+r*angleX) - DRect(2,2)*(posY+r*angleY)+clRect(2);
+     DRect(1,1)*(posX+r*angleX) + DRect(1,2)*(posX+r*angleX)-chRect(1)-e;
+    -DRect(1,1)*(posX+r*angleX) - DRect(1,2)*(posY+r*angleY)+clRect(1)-e;
+     DRect(2,1)*(posX+r*angleX) + DRect(2,2)*(posY+r*angleY)-chRect(2)-e;
+    -DRect(2,1)*(posX+r*angleX) - DRect(2,2)*(posY+r*angleY)+clRect(2)-e;
      ];
-%  Constraints on cart for elipsis   
+% %  Constraints on cart for elipsis   
  for i = 1:length(constraints.ellipses)
          el=constraints.ellipses{i};
-         elCon=-((((posX)-el.xc)/el.a).^2 + (((posY)-el.yc)/el.b).^2) +1.05;
-         elConLd=-((((posX+r*angleX)-el.xc)/el.a).^2 + (((posY+r*angleY)-el.yc)/el.b).^2) +1.05;
+         elCon=-((((posX)-el.xc)/el.a).^2 + (((posY)-el.yc)/el.b).^2) +1.05+e;
+         elConLd=-((((posX+r*angleX)-el.xc)/el.a).^2 + (((posY+r*angleY)-el.yc)/el.b).^2) +1.05+e;
          cineq = [cineq; elCon; elConLd]; 
  end
-
-for i= 1:min(5,stepsLeft-1)
+% 
+for i= 1:min(10,stepsLeft-1)
     xFin=X(p+2-i,:);
     cineq=[ cineq;
-            xFin' - param.targetMod - param.tolerances;
-           -xFin' + param.targetMod - param.tolerances;
-            xFin(1) + r*xFin(5) - param.target(1) - param.tolerances(1);
-           -xFin(1) - r*xFin(5) + param.target(1) - param.tolerances(1);
-            xFin(3) + r*xFin(7) - param.target(2) - param.tolerances(3);
-          - xFin(3) - r*xFin(7) + param.target(2) - param.tolerances(3)
+            xFin' - param.targetMod - 0.5*param.tolerances-e;
+           -xFin' + param.targetMod - 0.5*param.tolerances-e;
+            xFin(1) + r*xFin(5) - param.target(1) - 0.5*param.tolerances(1);
+           -xFin(1) - r*xFin(5) + param.target(1) - 0.5*param.tolerances(1);
+            xFin(3) + r*xFin(7) - param.target(2) - 0.5*param.tolerances(3);
+          - xFin(3) - r*xFin(7) + param.target(2) - 0.5*param.tolerances(3)
           ];
 end
 
+
+
 end
 
+function map = getMap(constraints,res,e)
+    map = false(res,res);
+    isOut = @(x,y) isConstraint(x,y,constraints,e);
+    for x = 1:size(map,1)
+        for y = 1:size(map,2)
+           xt =  1 - (2/res)*x;
+           yt =  1 -(2/res)*y;
+           map(x,y) = isOut(xt,yt);
+        end
+    end
+end
+
+function c = isConstraint(x,y,constraints,e)
+ [DRect,clRect,chRect] = getRectConstraints(constraints.rect);
  
+ c1=(x*DRect(1,1)+y*DRect(1,2)-chRect(1)*e)>0;
+ c2=(-x*DRect(1,1)-y*DRect(1,2)+clRect(1)*e)>0;
+ c3=(x*DRect(2,1)+y*DRect(2,2)-chRect(2)*e)>0;
+ c4=(-x*DRect(2,1)-y*DRect(2,2)+clRect(2)*e)>0;
+ c= c1||c2||c3||c4;
+
+ for i = 1:length(constraints.ellipses)
+         el=constraints.ellipses{i};
+         c = c || (-(((x-el.xc)/el.a).^2 + ((y-el.yc)/el.b).^2) +1*e)>0; 
+ end 
+end
+
+function pt = resamplePath(t,px,py)
+% resamplePath: interpolate points along a curve in 2 or more dimensions
+% modified version of interparc by John D'Errico
+t = t(:);
+if (numel(t) == 1) && (t > 1) && (rem(t,1) == 0)
+  t = linspace(0,1,t)';
+elseif any(t < 0) || any(t > 1)
+  error('ARCLENGTH:impropert', ...
+    'All elements of t must be 0 <= t <= 1')
+end
+nt = numel(t);
+px = px(:);
+py = py(:);
+n = numel(px);
+if ~isvector(px) || ~isvector(py) || (length(py) ~= n)
+  error('ARCLENGTH:improperpxorpy', ...
+    'px and py must be vectors of the same length')
+elseif n < 2
+  error('ARCLENGTH:improperpxorpy', ...
+    'px and py must be vectors of length at least 2')
+end
+pxy = [px,py];
+ndim = 2;
+pt = NaN(nt,ndim);
+chordlen = sqrt(sum(diff(pxy,[],1).^2,2));
+chordlen = chordlen/sum(chordlen);
+cumarc = [0;cumsum(chordlen)];
+[junk,tbins] = histc(t,cumarc); 
+tbins((tbins <= 0) | (t <= 0)) = 1;
+tbins((tbins >= n) | (t >= 1)) = n - 1;
+s = (t - cumarc(tbins))./chordlen(tbins);
+pt = pxy(tbins,:) + (pxy(tbins+1,:) - pxy(tbins,:)).*repmat(s,1,ndim);
+return
+end 
+
+
+function pathGuess = getPathGuess(shape, res, e, predictionHorizon)
+    %  Constraints is the constraint datastructure in shape 
+    %  res is the resolution for the discretization of the constraints (higher is better but longer processing time)
+    %  e is by how much the constraint are enlarged [1 2]
+    %  prediction horizon is how many steps the guess has
+    constraints=shape.constraints;
+    draw = false;
+    MAP = int8(getMap(constraints,res,e));
+    %Start Positions
+    StartY=floor((1-shape.start(1))*(res/2));
+    StartX=floor((1-shape.start(2))*(res/2));
+    EndX=floor((1-shape.target(1))*(res/2));
+    EndY=floor((1-shape.target(2))*(res/2));
+    GoalRegister=int8(zeros(res,res));
+    GoalRegister(EndX,EndY)=1;
+    Connecting_Distance=8; 
+    OptimalPath=ASTARPATH(StartX,StartY,MAP,GoalRegister,Connecting_Distance);
+    % Convert discrete map to continous values
+    pathGuess = zeros(size(OptimalPath));
+    for i=1:size(pathGuess,1)
+        pathGuess(i,1) = 1-OptimalPath(i,1)*(2/res);
+        pathGuess(i,2) = 1-OptimalPath(i,2)*(2/res);
+    end
+    % Resample map to prediction horizon
+    pathGuess = resamplePath(predictionHorizon,pathGuess(:,1),pathGuess(:,2));   
+    if draw
+        path = resamplePath(predictionHorizon,OptimalPath(:,1),OptimalPath(:,2));   
+        MAP = int8(getMap(constraints,res,1));
+        figure(10)
+        imagesc((MAP))
+        colormap(flipud(gray));
+        hold on
+        plot(path(1,2),path(1,1),'o','color','k')
+        plot(path(end,2),path(end,1),'o','color','b')
+        plot(path(:,2),path(:,1),'r')
+        legend('Target','Goal','Path')
+    end
+    %little dirty fix for my poor handling of dimensions
+    pathGuess=flip(pathGuess);
+    pathGuess(1,:)=shape.start;
+    pathGuess(end,:)=shape.target;
+end
+
+function OptimalPath = ASTARPATH(StartX,StartY,MAP,GoalRegister,Connecting_Distance)
+%Version 1.0
+% By Einar Ueland 2nd of May, 2016
+
+%FINDING ASTAR PATH IN AN OCCUPANCY GRID
+
+
+%nNeighboor=3;
+% Preallocation of Matrices
+[Height,Width]=size(MAP); %Height and width of matrix
+GScore=zeros(Height,Width);           %Matrix keeping track of G-scores 
+FScore=single(inf(Height,Width));     %Matrix keeping track of F-scores (only open list) 
+Hn=single(zeros(Height,Width));       %Heuristic matrix
+OpenMAT=int8(zeros(Height,Width));    %Matrix keeping of open grid cells
+ClosedMAT=int8(zeros(Height,Width));  %Matrix keeping track of closed grid cells
+ClosedMAT(MAP==1)=1;                  %Adding object-cells to closed matrix
+ParentX=int16(zeros(Height,Width));   %Matrix keeping track of X position of parent
+ParentY=int16(zeros(Height,Width));   %Matrix keeping track of Y position of parent
+
+
+%%% Setting up matrices representing neighboors to be investigated
+NeighboorCheck=ones(2*Connecting_Distance+1);
+Dummy=2*Connecting_Distance+2;
+Mid=Connecting_Distance+1;
+for i=1:Connecting_Distance-1
+NeighboorCheck(i,i)=0;
+NeighboorCheck(Dummy-i,i)=0;
+NeighboorCheck(i,Dummy-i)=0;
+NeighboorCheck(Dummy-i,Dummy-i)=0;
+NeighboorCheck(Mid,i)=0;
+NeighboorCheck(Mid,Dummy-i)=0;
+NeighboorCheck(i,Mid)=0;
+NeighboorCheck(Dummy-i,Mid)=0;
+end
+NeighboorCheck(Mid,Mid)=0;
+
+[row, col]=find(NeighboorCheck==1);
+Neighboors=[row col]-(Connecting_Distance+1);
+N_Neighboors=size(col,1);
+%%% End of setting up matrices representing neighboors to be investigated
+
+
+%%%%%%%%% Creating Heuristic-matrix based on distance to nearest  goal node
+[col, row]=find(GoalRegister==1);
+RegisteredGoals=[row col];
+Nodesfound=size(RegisteredGoals,1);
+
+for k=1:size(GoalRegister,1)
+    for j=1:size(GoalRegister,2)
+        if MAP(k,j)==0
+            Mat=RegisteredGoals-(repmat([j k],(Nodesfound),1));
+            Distance=(min(sqrt(sum(abs(Mat).^2,2))));
+            Hn(k,j)=Distance;
+        end
+    end
+end
+%End of creating Heuristic-matrix. 
+
+%Note: If Hn values is set to zero the method will reduce to the Dijkstras method.
+
+%Initializign start node with FValue and opening first node.
+FScore(StartY,StartX)=Hn(StartY,StartX);         
+OpenMAT(StartY,StartX)=1;   
+
+
+
+
+while 1==1 %Code will break when path found or when no path exist
+    MINopenFSCORE=min(min(FScore));
+    if MINopenFSCORE==inf;
+    %Failuere!
+    OptimalPath=[inf];
+    RECONSTRUCTPATH=0;
+     break
+    end
+    [CurrentY,CurrentX]=find(FScore==MINopenFSCORE);
+    CurrentY=CurrentY(1);
+    CurrentX=CurrentX(1);
+
+    if GoalRegister(CurrentY,CurrentX)==1
+    %GOAL!!
+        RECONSTRUCTPATH=1;
+        break
+    end
+    
+  %Remobing node from OpenList to ClosedList  
+    OpenMAT(CurrentY,CurrentX)=0;
+    FScore(CurrentY,CurrentX)=inf;
+    ClosedMAT(CurrentY,CurrentX)=1;
+    for p=1:N_Neighboors
+        i=Neighboors(p,1); %Y
+        j=Neighboors(p,2); %X
+        if CurrentY+i<1||CurrentY+i>Height||CurrentX+j<1||CurrentX+j>Width
+            continue
+        end
+        Flag=1;
+        if(ClosedMAT(CurrentY+i,CurrentX+j)==0) %Neiboor is open;
+            if (abs(i)>1||abs(j)>1);   
+                % Need to check that the path does not pass an object
+                JumpCells=2*max(abs(i),abs(j))-1;
+                for K=1:JumpCells;
+                    YPOS=round(K*i/JumpCells);
+                    XPOS=round(K*j/JumpCells);
+            
+                    if (MAP(CurrentY+YPOS,CurrentX+XPOS)==1)
+                        Flag=0;
+                    end
+                end
+            end
+             %End of  checking that the path does not pass an object
+
+            if Flag==1;           
+                tentative_gScore = GScore(CurrentY,CurrentX) + sqrt(i^2+j^2);
+                if OpenMAT(CurrentY+i,CurrentX+j)==0
+                    OpenMAT(CurrentY+i,CurrentX+j)=1;                    
+                elseif tentative_gScore >= GScore(CurrentY+i,CurrentX+j)
+                    continue
+                end
+                ParentX(CurrentY+i,CurrentX+j)=CurrentX;
+                ParentY(CurrentY+i,CurrentX+j)=CurrentY;
+                GScore(CurrentY+i,CurrentX+j)=tentative_gScore;
+                FScore(CurrentY+i,CurrentX+j)= tentative_gScore+Hn(CurrentY+i,CurrentX+j);
+            end
+        end
+    end
+end
+
+k=2;
+if RECONSTRUCTPATH
+    OptimalPath(1,:)=[CurrentY CurrentX];
+    while RECONSTRUCTPATH
+        CurrentXDummy=ParentX(CurrentY,CurrentX);
+        CurrentY=ParentY(CurrentY,CurrentX);
+        CurrentX=CurrentXDummy;
+        OptimalPath(k,:)=[CurrentY CurrentX];
+        k=k+1;
+        if (((CurrentX== StartX)) &&(CurrentY==StartY))
+            break
+        end
+    end
+end
+
+
+end
 

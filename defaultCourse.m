@@ -125,6 +125,59 @@ elseif coursenum == 5
     start=[0, 0.6];
     target=[0.5, 0.5];
     Wmax = 0.2;
+    Tf   = 20;
+
+elseif coursenum == 6
+    constraints.rect=[-0.5,-0.5;0.5,-0.5;0.5,0.5;-0.5,0.5]
+    ellipse0.xc=-0.75;
+    ellipse0.yc=0.4;
+    ellipse0.a=0.05;
+    ellipse0.b=0.05;
+
+    ellipse1.xc=0.2;
+    ellipse1.yc=0.2;
+    ellipse1.a=0.1;
+    ellipse1.b=0.1;
+
+    ellipse2.xc=-0.2;
+    ellipse2.yc=-0.1;
+    ellipse2.a=0.1;
+    ellipse2.b=0.1;
+
+    ellipse3.xc=0.0;
+    ellipse3.yc=0.0;
+    ellipse3.a=0.05;
+    ellipse3.b=0.05;
+
+    ellipse4.xc=-0.2;
+    ellipse4.yc=0.0;
+    ellipse4.a=0.15;
+    ellipse4.b=0.15;
+
+    ellipse5.xc=-0.5;
+    ellipse5.yc=0.25;
+    ellipse5.a=0.075;
+    ellipse5.b=0.075;
+
+    ellipse6.xc=0.2;
+    ellipse6.yc=0.25;
+    ellipse6.a=0.05;
+    ellipse6.b=0.05;
+
+    ellipse7.xc=-0.25;
+    ellipse7.yc=0.5;
+    ellipse7.a=0.1;
+    ellipse7.b=0.1;
+
+    ellipse8.xc=0.75;
+    ellipse8.yc=-0.25;
+    ellipse8.a=0.5;
+    ellipse8.b=0.5;
+    constraints.ellipses={ellipse0,ellipse1,ellipse2,ellipse3,ellipse4,ellipse5,ellipse6,ellipse7,ellipse8};
+    penalties = [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1];
+    start=[0.4, 0.35];
+    target=[-0.45, -0.3];
+    Wmax = 1;
     Tf   = 5;
 end
 
