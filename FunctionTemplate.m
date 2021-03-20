@@ -20,8 +20,9 @@ param.eps_r=shape.eps_r;
 param.eps_t=shape.eps_t;
 param.Wmax=shape.Wmax;
 param.Tf=shape.Tf;
-param.N=100;
-param.Ts = param.Tf/param.N
+param.Ts = 0.05;
+param.N=ceil(param.Tf/param.Ts);
+param.settlingPeriod=1;
 param.tolerances=shape.tolerances.state(1:8)*0.5;
 param.nx = 8;
 param.ny = 8;
@@ -33,13 +34,16 @@ param.nlobj.Model.StateFcn = @(x,u) crane_nl_model_mod(x, u, Tx, Ty ,Tl ,Vx ,Vy 
 param.nlobj.Ts = param.Ts;
 param.nlobj.PredictionHorizon = param.N;
 param.nlobj.ControlHorizon = param.N;
-param.nlobj.Weights.OutputVariables = [0 5 0 5 0 0 0 0];
+param.nlobj.Weights.OutputVariables = [1 5 1 5 0 0 0 0];
+% param.nlobj.Weights.OutputVariables = [1 0 1 0 0 0 0 0];
+
 param.nlobj.Weights.ManipulatedVariables = [5 5];
+nlobj.Optimization.UseSuboptimalSolution = true;
+
 nlobj.Optimization.SolverOptions.FunctionTolerance = 0.001;
 nlobj.Optimization.SolverOptions.StepTolerance = 0.001;
-nlobj.Optimization.SolverOptions.MaxIter = 60;
+nlobj.Optimization.SolverOptions.MaxIter = 35;
 nlobj.Optimization.SolverOptions.ConstraintTolerance = 0.01;
-nlobj.Optimization.UseSuboptimalSolution = true;
 
 
 % Add constraints on inputs
@@ -51,7 +55,7 @@ end
 param.nlobj.Optimization.CustomIneqConFcn = @(X,U,e,data)myIneqConFunction(X,U,e,data,shape.constraints,r,param);
 param.nloptions = nlmpcmoveopt;
 
-param.pathGuess = getPathGuess(shape, 200, 1.1, param.N);
+param.pathGuess = getPathGuess(shape, 250, 1.1, param.N);
 
 
 
@@ -252,20 +256,20 @@ cineq = [
 % %  Constraints on cart for elipsis   
  for i = 1:length(constraints.ellipses)
          el=constraints.ellipses{i};
-         elCon=-((((posX)-el.xc)/el.a).^2 + (((posY)-el.yc)/el.b).^2) +1.05+e;
-         elConLd=-((((posX+r*angleX)-el.xc)/el.a).^2 + (((posY+r*angleY)-el.yc)/el.b).^2) +1.05+e;
+         elCon=-((((posX)-el.xc)/el.a).^2 + (((posY)-el.yc)/el.b).^2) +1.01+e;
+         elConLd=-((((posX+r*angleX)-el.xc)/el.a).^2 + (((posY+r*angleY)-el.yc)/el.b).^2) +1.01+e;
          cineq = [cineq; elCon; elConLd]; 
  end
 % 
 for i= 1:min(10,stepsLeft-1)
     xFin=X(p+2-i,:);
     cineq=[ cineq;
-            xFin' - param.targetMod - 0.5*param.tolerances-e;
-           -xFin' + param.targetMod - 0.5*param.tolerances-e;
-            xFin(1) + r*xFin(5) - param.target(1) - 0.5*param.tolerances(1);
-           -xFin(1) - r*xFin(5) + param.target(1) - 0.5*param.tolerances(1);
-            xFin(3) + r*xFin(7) - param.target(2) - 0.5*param.tolerances(3);
-          - xFin(3) - r*xFin(7) + param.target(2) - 0.5*param.tolerances(3)
+            xFin' - param.targetMod - param.tolerances;
+           -xFin' + param.targetMod - param.tolerances;
+            xFin(1) + r*xFin(5) - param.target(1) - param.tolerances(1);
+           -xFin(1) - r*xFin(5) + param.target(1) - param.tolerances(1);
+            xFin(3) + r*xFin(7) - param.target(2) - param.tolerances(3);
+          - xFin(3) - r*xFin(7) + param.target(2) - param.tolerances(3)
           ];
 end
 
@@ -288,15 +292,15 @@ end
 function c = isConstraint(x,y,constraints,e)
  [DRect,clRect,chRect] = getRectConstraints(constraints.rect);
  
- c1=(x*DRect(1,1)+y*DRect(1,2)-chRect(1)*e)>0;
- c2=(-x*DRect(1,1)-y*DRect(1,2)+clRect(1)*e)>0;
- c3=(x*DRect(2,1)+y*DRect(2,2)-chRect(2)*e)>0;
- c4=(-x*DRect(2,1)-y*DRect(2,2)+clRect(2)*e)>0;
+ c1=(x*DRect(1,1)+y*DRect(1,2)-chRect(1))>0;
+ c2=(-x*DRect(1,1)-y*DRect(1,2)+clRect(1))>0;
+ c3=(x*DRect(2,1)+y*DRect(2,2)-chRect(2))>0;
+ c4=(-x*DRect(2,1)-y*DRect(2,2)+clRect(2))>0;
  c= c1||c2||c3||c4;
 
  for i = 1:length(constraints.ellipses)
          el=constraints.ellipses{i};
-         c = c || (-(((x-el.xc)/el.a).^2 + ((y-el.yc)/el.b).^2) +1*e)>0; 
+         c = c || (-(((x-el.xc)/el.a).^2 + ((y-el.yc)/el.b).^2) +1)>0; 
  end 
 end
 
@@ -363,7 +367,7 @@ function pathGuess = getPathGuess(shape, res, e, predictionHorizon)
     pathGuess = resamplePath(predictionHorizon,pathGuess(:,1),pathGuess(:,2));   
     if draw
         path = resamplePath(predictionHorizon,OptimalPath(:,1),OptimalPath(:,2));   
-        MAP = int8(getMap(constraints,res,1));
+        MAP = int8(getMap(constraints,res,e));
         figure(10)
         imagesc((MAP))
         colormap(flipud(gray));
@@ -444,12 +448,10 @@ FScore(StartY,StartX)=Hn(StartY,StartX);
 OpenMAT(StartY,StartX)=1;   
 
 
-
-
 while 1==1 %Code will break when path found or when no path exist
     MINopenFSCORE=min(min(FScore));
     if MINopenFSCORE==inf;
-    %Failuere!
+    %Failure!
     OptimalPath=[inf];
     RECONSTRUCTPATH=0;
      break

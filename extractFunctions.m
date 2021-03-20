@@ -96,9 +96,17 @@ while ( ~feof(fr) )
         fLine(numFunc, 1) = lnum;
         
         % Extract the function name
-        fname = regexpi(l, '[\S]*\(', 'match');
-        fname = fname{:};
-        fname = fname(1:end-1);
+        fname = regexpi(l, 'function(.*\]*[\S]*\s*=\s*|\s)(\S.*)\(.*', 'tokens');
+        
+        % If the file was unable to be opened for some reason, throw an
+        % error and close the reading file
+        if ( length(fname{1}) ~= 2)
+            fclose(fr);
+            error(['Error parsing function line "', l, '"']);
+        end
+        
+        % The second matching group will contain the filename
+        fname = fname{1}{2};
         
         % Save the function name for return
         funcs{numFunc} = fname;

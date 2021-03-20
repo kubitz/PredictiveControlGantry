@@ -84,20 +84,24 @@ elseif coursenum == 3
 
 elseif coursenum == 4
     % The shape for the first part
-    constraints.rect = [0.00, 0.01;
-                        0.49, 0.50;
-                        0.50, 0.49;
-                        0.01, 0.00];
-                   
-    constraints.ellipses = {};
+    constraints.rect=[-0.75,-0.75;-0.15,-0.75;-0.15,-0.15;-0.75,-0.15]
+
+    ellipse0.xc=-0.5;
+    ellipse0.yc=-0.61;
+    ellipse0.a=0.15;
+    ellipse0.b=0.15;
+
+    ellipse1.xc=-0.5;
+    ellipse1.yc=-0.2;c
+    ellipse1.a=0.15;
+    ellipse1.b=0.15;
+    constraints.ellipses={ellipse0,ellipse1};
+    penalties = [-1, -1, -1, -1, -1, -1];
+    start=[-0.7, -0.7];
+    target=[-0.3, -0.7];
    
-    penalties = [-1, -2, -1, -1];
-   
-    start  = [0.5, 0.49];
-    target = [0.0, 0.01];
-   
-    Wmax = 1;
-    Tf   = 2.75;
+    Wmax = 0.5;
+    Tf   = 7;
 elseif coursenum == 5
     constraints.rect=[-0.75,-0.75;0.75,-0.75;0.75,0.75;-0.75,0.75]
 
